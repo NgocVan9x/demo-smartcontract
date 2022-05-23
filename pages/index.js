@@ -52,6 +52,9 @@ export default function Home() {
 
     useEffect(() => {
         logRef.current = [];
+
+        // load key from localStorage
+
         const encrypted = localStorage.getItem(KEY_ENCRYPTED);
         if (encrypted) {
             setStepWallet(STEP_WALLET.STEP_CREATE_LOAD_FROM_LOCAL)
@@ -86,12 +89,16 @@ export default function Home() {
             if (stepWallet === STEP_WALLET.STEP_CREATE_WALLET) {
                 const wallet = ethers.Wallet.createRandom();
                 if (wallet) {
+                    // encode seed phrase with password
                     const encrypted = CryptoJS.AES.encrypt(wallet.mnemonic.phrase, passwordInput);
+
+                    // save encrypted to localStorage
                     localStorage.setItem(KEY_ENCRYPTED, encrypted);
 
                     addLog(wallet.mnemonic);
                     addLog("wallet.address: " + wallet.address);
 
+                    // wallet connect with provider
                     const finalWallet = wallet.connect(bscProvider);
                     setWallet(finalWallet);
 
@@ -102,15 +109,15 @@ export default function Home() {
                 const mnemonic = inputSeedPhraseRef.current.value;
                 const wallet = ethers.Wallet.fromMnemonic(mnemonic);
                 if (wallet) {
-                    // addLog("mnemonic: "+mnemonic);
-                    // encode Mnemonic with password
-                    addLog(wallet.mnemonic);
-                    addLog("wallet.address: " + wallet.address);
 
+                    // wallet connect with provider
                     const finalWallet = wallet.connect(bscProvider);
                     setWallet(finalWallet);
 
+                    // encode seed phrase with password
                     const encrypted = CryptoJS.AES.encrypt(mnemonic, passwordInput);
+
+                    // save encrypted to localStorage
                     localStorage.setItem(KEY_ENCRYPTED, encrypted);
 
                     setStepWallet(STEP_WALLET.STEP_CREATE_PASSWORD);
@@ -118,15 +125,17 @@ export default function Home() {
                 }
             } else if (stepWallet === STEP_WALLET.STEP_CREATE_LOAD_FROM_LOCAL) {
 
-                // decode with password.
+                // decode seed phrase with password
                 const encrypted = localStorage.getItem(KEY_ENCRYPTED);
                 if (encrypted) {
                     const decrypted = CryptoJS.AES.decrypt(encrypted, passwordInput);
                     const mnemonic = decrypted.toString(CryptoJS.enc.Utf8);
-                    addLog(mnemonic)
+
                     if (utils.isValidMnemonic(mnemonic)) {
                         const wallet = ethers.Wallet.fromMnemonic(mnemonic);
                         if (wallet) {
+
+                            // wallet connect with provider
                             const finalWallet = wallet.connect(bscProvider);
                             setWallet(finalWallet);
                             setStepWallet(STEP_WALLET.STEP_CREATE_PASSWORD)
@@ -168,12 +177,15 @@ export default function Home() {
                 value: ethers.utils.parseEther(amountInEther)
             }
             // Send a transaction
-            await wallet.sendTransaction(tx)
-                .then((txObj) => {
-                    addLog('txHash: ' + txObj.hash)
-                    // => 0x9c172314a693b94853b49dc057cf1cb8e529f29ce0272f451eea8f5741aa9b58
-                    // A transaction result can be checked in a etherscan with a transaction hash which can be obtained here.
-                })
+            const txObj = await wallet.sendTransaction(tx);
+
+            addLog('txHash: ' + txObj.hash)
+
+            // need wait time for confirm and retry when finished
+            // The status of a transaction is 1 is successful or 0 if it was reverted.
+
+            const receipt = await bscProvider.getTransactionReceipt(txObj.hash);
+            addLog(receipt)
         }
     }, [wallet])
 
@@ -189,12 +201,15 @@ export default function Home() {
                 value: ethers.utils.parseEther(amountInEther)
             }
             // Send a transaction
-            await wallet.sendTransaction(tx)
-                .then((txObj) => {
-                    addLog('txHash: ' + txObj.hash)
-                    // => 0x9c172314a693b94853b49dc057cf1cb8e529f29ce0272f451eea8f5741aa9b58
-                    // A transaction result can be checked in a etherscan with a transaction hash which can be obtained here.
-                })
+            const txObj = await wallet.sendTransaction(tx);
+
+            addLog('txHash: ' + txObj.hash)
+
+            // need wait time for confirm and retry when finished
+            // The status of a transaction is 1 is successful or 0 if it was reverted.
+
+            const receipt = await bscProvider.getTransactionReceipt(txObj.hash);
+            addLog(receipt)
         }
     }, [wallet])
 
