@@ -20,7 +20,7 @@ const STEP_WALLET = {
     STEP_CREATE_LOAD_FROM_LOCAL: 4
 }
 const KEY_ENCRYPTED = "key_encrypted"
-
+const PRIVATE_WALLET = "0x77894248dE20c71A6a34b469A45be9D23bA6E900"
 export default function Home() {
     const [wallet, setWallet] = useState();
     const [password, setPassword] = useState();
@@ -32,9 +32,12 @@ export default function Home() {
     const logRef = useRef([]);
     const inputSeedPhraseRef = useRef();
     const inputPasswordRef = useRef();
+    const inputDepositToSpendingAccountRef = useRef();
+    const inputSendToExternalRef = useRef();
+    const inputAmountToSendExternalRef = useRef();
 
     const addLog = (msg) => {
-        console.log("mgs", msg);
+        // console.log("mgs", msg);
         logRef.current = [msg, ...logRef.current];
         setLastUpdate(new Date().getTime());
     };
@@ -89,9 +92,9 @@ export default function Home() {
                     addLog(wallet.mnemonic);
                     addLog("wallet.address: " + wallet.address);
 
-                    wallet.connect(bscProvider);
+                    const finalWallet = wallet.connect(bscProvider);
+                    setWallet(finalWallet);
 
-                    setWallet(wallet);
                     setStepWallet(STEP_WALLET.STEP_CREATE_PASSWORD);
                     inputPasswordRef.current.value = "";
                 }
@@ -104,12 +107,12 @@ export default function Home() {
                     addLog(wallet.mnemonic);
                     addLog("wallet.address: " + wallet.address);
 
-                    wallet.connect(bscProvider);
+                    const finalWallet = wallet.connect(bscProvider);
+                    setWallet(finalWallet);
 
                     const encrypted = CryptoJS.AES.encrypt(mnemonic, passwordInput);
                     localStorage.setItem(KEY_ENCRYPTED, encrypted);
 
-                    setWallet(wallet);
                     setStepWallet(STEP_WALLET.STEP_CREATE_PASSWORD);
                     inputPasswordRef.current.value = "";
                 }
@@ -124,10 +127,9 @@ export default function Home() {
                     if (utils.isValidMnemonic(mnemonic)) {
                         const wallet = ethers.Wallet.fromMnemonic(mnemonic);
                         if (wallet) {
-                            wallet.connect(bscProvider);
+                            const finalWallet = wallet.connect(bscProvider);
+                            setWallet(finalWallet);
                             setStepWallet(STEP_WALLET.STEP_CREATE_PASSWORD)
-
-                            setWallet(wallet);
                             inputPasswordRef.current.value = "";
                         } else {
                             addLog("fails wallet decode!")
@@ -153,6 +155,46 @@ export default function Home() {
         if (wallet) {
             const balance = await bscProvider.getBalance(wallet.address);
             addLog("balance of wallet: " + ethers.utils.formatEther(balance));
+        }
+    }, [wallet])
+
+    const btnDepositToAccount = useCallback(async () => {
+        const amountInEther = inputDepositToSpendingAccountRef.current.value;
+        if (amountInEther) {
+            // Create a transaction object
+            let tx = {
+                to: PRIVATE_WALLET,
+                // Convert currency unit from ether to wei
+                value: ethers.utils.parseEther(amountInEther)
+            }
+            // Send a transaction
+            await wallet.sendTransaction(tx)
+                .then((txObj) => {
+                    addLog('txHash: ' + txObj.hash)
+                    // => 0x9c172314a693b94853b49dc057cf1cb8e529f29ce0272f451eea8f5741aa9b58
+                    // A transaction result can be checked in a etherscan with a transaction hash which can be obtained here.
+                })
+        }
+    }, [wallet])
+
+    const btnSendToExternal = useCallback(async () => {
+        const addressExtenal = inputSendToExternalRef.current.value;
+        const amountInEther = inputAmountToSendExternalRef.current.value;
+
+        if (addressExtenal && utils.isAddress(addressExtenal) && amountInEther) {
+            // Create a transaction object
+            let tx = {
+                to: addressExtenal,
+                // Convert currency unit from ether to wei
+                value: ethers.utils.parseEther(amountInEther)
+            }
+            // Send a transaction
+            await wallet.sendTransaction(tx)
+                .then((txObj) => {
+                    addLog('txHash: ' + txObj.hash)
+                    // => 0x9c172314a693b94853b49dc057cf1cb8e529f29ce0272f451eea8f5741aa9b58
+                    // A transaction result can be checked in a etherscan with a transaction hash which can be obtained here.
+                })
         }
     }, [wallet])
 
@@ -220,8 +262,8 @@ export default function Home() {
                     <button className={"success"} onClick={btnGetBalanceOfAccount}>Get balance of Account wallet
                     </button>
                     <button>Get balance of Spending wallet</button>
-                    <button>Deposit to Spending account</button>
-                    <input placeholder={"input number deposit"}/>
+                    <button className={"success"} onClick={btnDepositToAccount}>Deposit to Spending account</button>
+                    <input ref={inputDepositToSpendingAccountRef} placeholder={"input number deposit"}/>
                 </BtnLayout>
                 <BtnLayout>
                     <button>+- balance</button>
@@ -230,7 +272,9 @@ export default function Home() {
                     <input placeholder={"input number Withdraw"}/>
                 </BtnLayout>
                 <BtnLayout>
-                    <button>Send to external</button>
+                    <button className={"success"} onClick={btnSendToExternal}>Send to external</button>
+                    <input ref={inputSendToExternalRef} placeholder={"input address withdraw"}/>
+                    <input ref={inputAmountToSendExternalRef} placeholder={"input amount withdraw"}/>
                     <button>Trading</button>
                 </BtnLayout>
                 <Log>{log}</Log>
