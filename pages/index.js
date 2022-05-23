@@ -3,20 +3,35 @@ import styles from "../styles/Home.module.css";
 import styled from 'styled-components'
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 // import Web3 from "web3";
-import CreateAccountForm from "../src/CreateAccountForm";
-import * as bip39 from "bip39";
-import {ethers} from "ethers";
+import {ethers, utils} from "ethers";
+import CryptoJS from 'crypto-js';
 
-const RPC = "https://api.avax-test.network/ext/bc/C/rpc";
+// const RPC = "https://bsc-dataseed.binance.org/";
+const RPC = "https://data-seed-prebsc-1-s1.binance.org:8545/";
 // const web3 = new Web3(RPC);
 
-const provider = new ethers.providers.JsonRpcProvider(RPC);
+const bscProvider = new ethers.providers.JsonRpcProvider(RPC)
+
+const STEP_WALLET = {
+    STEP_NONE: 0,
+    STEP_CREATE_WALLET: 1,
+    STEP_IMPORT_WALLET: 2,
+    STEP_CREATE_PASSWORD: 3,
+    STEP_CREATE_LOAD_FROM_LOCAL: 4
+}
+const KEY_ENCRYPTED = "key_encrypted"
 
 export default function Home() {
-    const [account, setAccount] = useState();
+    const [wallet, setWallet] = useState();
+    const [password, setPassword] = useState();
+
+    const [stepWallet, setStepWallet] = useState(STEP_WALLET.STEP_NONE);
     const [_, setLastUpdate] = useState(new Date().getTime());
-    const [createAccountClicked, setCreateAccountClicked] = useState(false)
+
+
     const logRef = useRef([]);
+    const inputSeedPhraseRef = useRef();
+    const inputPasswordRef = useRef();
 
     const addLog = (msg) => {
         console.log("mgs", msg);
@@ -34,26 +49,112 @@ export default function Home() {
 
     useEffect(() => {
         logRef.current = [];
+        const encrypted = localStorage.getItem(KEY_ENCRYPTED);
+        if (encrypted) {
+            setStepWallet(STEP_WALLET.STEP_CREATE_LOAD_FROM_LOCAL)
+        }
     }, []);
 
-    const btnCreateAccount = useCallback(async () => {
-        addLog("create Account!");
-        // const account = web3.eth.accounts.wallet;
-        // const password = prompt("Password");
-        setCreateAccountClicked(true);
-        // if (password) {
-        // const randomSeed = ethers.Wallet.createRandom();
-        // addLog(randomSeed.mnemonic);
-        // addLog(randomSeed.address);
-        const wallet = ethers.Wallet.createRandom();
-        console.log(wallet.address)
-        console.log(wallet.mnemonic)
-        const balance = await provider.getBalance(wallet.address)
-        // { BigNumber: "2337132817842795605" }
-
-        console.log(ethers.utils.formatEther(balance))
-
+    const btnCreateWallet = useCallback(async () => {
+        addLog("============ Create Account Wallet Clicked! ============");
+        setStepWallet(STEP_WALLET.STEP_CREATE_WALLET);
     }, []);
+
+    const btnImportWallet = useCallback(() => {
+            addLog("============ Import Account Wallet Clicked! ============");
+            const mnemonic = inputSeedPhraseRef.current.value;
+            // addLog(`seed phrase input ${mnemonic}`)
+            if (utils.isValidMnemonic(mnemonic)) {
+                setStepWallet(STEP_WALLET.STEP_IMPORT_WALLET)
+            } else {
+                addLog(" Seed phrase Wrong!")
+            }
+        }
+        ,
+        []
+    )
+
+    const btnCreatePasswordAPP = useCallback(async () => {
+        addLog("============ Import Create Password Clicked! ============");
+        const passwordInput = inputPasswordRef.current.value;
+        if ((passwordInput && passwordInput.length < 7) || !passwordInput) {
+            addLog("Please input password with 7 character");
+        } else {
+            if (stepWallet === STEP_WALLET.STEP_CREATE_WALLET) {
+                const wallet = ethers.Wallet.createRandom();
+                if (wallet) {
+                    const encrypted = CryptoJS.AES.encrypt(wallet.mnemonic.phrase, passwordInput);
+                    localStorage.setItem(KEY_ENCRYPTED, encrypted);
+
+                    addLog(wallet.mnemonic);
+                    addLog("wallet.address: " + wallet.address);
+
+                    wallet.connect(bscProvider);
+
+                    setWallet(wallet);
+                    setStepWallet(STEP_WALLET.STEP_CREATE_PASSWORD);
+                    inputPasswordRef.current.value = "";
+                }
+            } else if (stepWallet === STEP_WALLET.STEP_IMPORT_WALLET) {
+                const mnemonic = inputSeedPhraseRef.current.value;
+                const wallet = ethers.Wallet.fromMnemonic(mnemonic);
+                if (wallet) {
+                    // addLog("mnemonic: "+mnemonic);
+                    // encode Mnemonic with password
+                    addLog(wallet.mnemonic);
+                    addLog("wallet.address: " + wallet.address);
+
+                    wallet.connect(bscProvider);
+
+                    const encrypted = CryptoJS.AES.encrypt(mnemonic, passwordInput);
+                    localStorage.setItem(KEY_ENCRYPTED, encrypted);
+
+                    setWallet(wallet);
+                    setStepWallet(STEP_WALLET.STEP_CREATE_PASSWORD);
+                    inputPasswordRef.current.value = "";
+                }
+            } else if (stepWallet === STEP_WALLET.STEP_CREATE_LOAD_FROM_LOCAL) {
+
+                // decode with password.
+                const encrypted = localStorage.getItem(KEY_ENCRYPTED);
+                if (encrypted) {
+                    const decrypted = CryptoJS.AES.decrypt(encrypted, passwordInput);
+                    const mnemonic = decrypted.toString(CryptoJS.enc.Utf8);
+                    addLog(mnemonic)
+                    if (utils.isValidMnemonic(mnemonic)) {
+                        const wallet = ethers.Wallet.fromMnemonic(mnemonic);
+                        if (wallet) {
+                            wallet.connect(bscProvider);
+                            setStepWallet(STEP_WALLET.STEP_CREATE_PASSWORD)
+
+                            setWallet(wallet);
+                            inputPasswordRef.current.value = "";
+                        } else {
+                            addLog("fails wallet decode!")
+                            localStorage.removeItem(KEY_ENCRYPTED);
+                            setStepWallet(STEP_WALLET.STEP_NONE)
+                        }
+                    } else {
+                        addLog(" Wrong Password")
+                        // setStepWallet(STEP_WALLET.STEP_CREATE_LOAD_FROM_LOCAL)
+                    }
+                }
+            }
+        }
+    }, [stepWallet])
+
+    const btnLogOut = useCallback(() => {
+        setWallet(null);
+        localStorage.removeItem(KEY_ENCRYPTED);
+        setStepWallet(STEP_WALLET.STEP_NONE);
+    }, [])
+
+    const btnGetBalanceOfAccount = useCallback(async () => {
+        if (wallet) {
+            const balance = await bscProvider.getBalance(wallet.address);
+            addLog("balance of wallet: " + ethers.utils.formatEther(balance));
+        }
+    }, [wallet])
 
     return (
         <div className={styles.container}>
@@ -65,19 +166,73 @@ export default function Home() {
             <main className={styles.main}>
                 <BtnLayout>
                     <h3>Address:</h3>
-                    <h4>{account || "Not connected"}</h4>
+                    <h4>{wallet && wallet.address || "Not connected"}</h4>
                 </BtnLayout>
-                {!createAccountClicked ?
-                    <BtnLayout>
+                <BtnLayout>
+                    {!wallet &&
+                    <>
                         <button
-                            onClick={btnCreateAccount}
-                            className={`${account ? "" : "disabled"}`}
+                            onClick={btnCreateWallet}
+                            className={`success ${stepWallet === STEP_WALLET.STEP_NONE ? "" : "disabled"}`}
                         >
-                            {account ? "Disconnect" : "Create Account"}
+                            Create account wallet
                         </button>
-                    </BtnLayout>
-                    : <CreateAccountForm/>
-                   }
+
+                        <button
+                            onClick={btnImportWallet}
+                            className={`success ${stepWallet === STEP_WALLET.STEP_NONE ? "" : "disabled"}`}
+                        >
+                            Import account wallet
+                        </button>
+                        <input ref={inputSeedPhraseRef}
+                               disabled={`${stepWallet === STEP_WALLET.STEP_NONE ? "" : "disabled"}`}
+                               placeholder={"input seed phrase"}/>
+                    </>
+                    }
+                    {wallet &&
+                    <button
+                        onClick={btnLogOut}
+                        className={`success ${wallet ? "" : "disabled"}`}
+                    >
+                        Log out Account
+                    </button>
+                    }
+                </BtnLayout>
+                <BtnLayout>
+                    <input
+                        ref={inputPasswordRef}
+                        disabled={`${stepWallet === STEP_WALLET.STEP_CREATE_WALLET || stepWallet === STEP_WALLET.STEP_IMPORT_WALLET || stepWallet === STEP_WALLET.STEP_CREATE_LOAD_FROM_LOCAL ? "" : "disabled"}`}
+                        placeholder={"input password"}/>
+                    <button
+                        onClick={btnCreatePasswordAPP}
+                        className={`success ${stepWallet === STEP_WALLET.STEP_CREATE_WALLET || stepWallet === STEP_WALLET.STEP_IMPORT_WALLET || stepWallet === STEP_WALLET.STEP_CREATE_LOAD_FROM_LOCAL ? "" : "disabled"}`}
+                    >
+                        {stepWallet === STEP_WALLET.STEP_CREATE_LOAD_FROM_LOCAL ? `Please Input Password` : `Create account password`}
+                    </button>
+                </BtnLayout>
+                <BtnLayout>
+                    {/*<button*/}
+                    {/*    onClick={btnImportWallet}*/}
+                    {/*    className={"success"}*/}
+                    {/*>*/}
+                    {/*    Decode seed phrase from LocalStorage*/}
+                    {/*</button>*/}
+                    <button className={"success"} onClick={btnGetBalanceOfAccount}>Get balance of Account wallet
+                    </button>
+                    <button>Get balance of Spending wallet</button>
+                    <button>Deposit to Spending account</button>
+                    <input placeholder={"input number deposit"}/>
+                </BtnLayout>
+                <BtnLayout>
+                    <button>+- balance</button>
+                    <input placeholder={"input number update balance"}/>
+                    <button>Withdraw to Account wallet</button>
+                    <input placeholder={"input number Withdraw"}/>
+                </BtnLayout>
+                <BtnLayout>
+                    <button>Send to external</button>
+                    <button>Trading</button>
+                </BtnLayout>
                 <Log>{log}</Log>
             </main>
         </div>
@@ -100,10 +255,10 @@ const Log = styled.pre`
 const BtnLayout = styled.div`
   display: flex;
   flex-direction: row;
-  margin: 0 auto;
+  margin: 10px auto;
   flex-wrap: wrap;
   max-width: 1400px;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
 
   button {
@@ -142,5 +297,12 @@ const BtnLayout = styled.div`
     margin: 4px 0;
     padding: 8px 0;
     text-decoration: underline;
+  }
+
+  input {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 4px 8px;
+    padding: 8px;
   }
 `;
