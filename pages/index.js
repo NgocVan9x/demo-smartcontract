@@ -5,6 +5,9 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 // import Web3 from "web3";
 import {ethers, utils} from "ethers";
 import CryptoJS from 'crypto-js';
+import axios from 'axios';
+import {print} from 'graphql';
+import gql from 'graphql-tag';
 
 // const RPC = "https://bsc-dataseed.binance.org/";
 const RPC = "https://data-seed-prebsc-1-s1.binance.org:8545/";
@@ -21,6 +24,9 @@ const STEP_WALLET = {
 }
 const KEY_ENCRYPTED = "key_encrypted"
 const PRIVATE_WALLET = "0x77894248dE20c71A6a34b469A45be9D23bA6E900"
+
+const API_LINK = "http://3.141.226.203:8080/graphql/"
+
 export default function Home() {
     const [wallet, setWallet] = useState();
     const [password, setPassword] = useState();
@@ -35,6 +41,7 @@ export default function Home() {
     const inputDepositToSpendingAccountRef = useRef();
     const inputSendToExternalRef = useRef();
     const inputAmountToSendExternalRef = useRef();
+    const inputWithdrawAccountWalletTokenRef = useRef();
 
     const addLog = (msg) => {
         // console.log("mgs", msg);
@@ -128,26 +135,30 @@ export default function Home() {
                 // decode seed phrase with password
                 const encrypted = localStorage.getItem(KEY_ENCRYPTED);
                 if (encrypted) {
-                    const decrypted = CryptoJS.AES.decrypt(encrypted, passwordInput);
-                    const mnemonic = decrypted.toString(CryptoJS.enc.Utf8);
+                    try {
+                        const decrypted = CryptoJS.AES.decrypt(encrypted, passwordInput);
+                        const mnemonic = decrypted.toString(CryptoJS.enc.Utf8);
 
-                    if (utils.isValidMnemonic(mnemonic)) {
-                        const wallet = ethers.Wallet.fromMnemonic(mnemonic);
-                        if (wallet) {
+                        if (utils.isValidMnemonic(mnemonic)) {
+                            const wallet = ethers.Wallet.fromMnemonic(mnemonic);
+                            if (wallet) {
 
-                            // wallet connect with provider
-                            const finalWallet = wallet.connect(bscProvider);
-                            setWallet(finalWallet);
-                            setStepWallet(STEP_WALLET.STEP_CREATE_PASSWORD)
-                            inputPasswordRef.current.value = "";
+                                // wallet connect with provider
+                                const finalWallet = wallet.connect(bscProvider);
+                                setWallet(finalWallet);
+                                setStepWallet(STEP_WALLET.STEP_CREATE_PASSWORD)
+                                inputPasswordRef.current.value = "";
+                            } else {
+                                addLog("fails wallet decode!")
+                                localStorage.removeItem(KEY_ENCRYPTED);
+                                setStepWallet(STEP_WALLET.STEP_NONE)
+                            }
                         } else {
-                            addLog("fails wallet decode!")
-                            localStorage.removeItem(KEY_ENCRYPTED);
-                            setStepWallet(STEP_WALLET.STEP_NONE)
+                            addLog(" Wrong Password")
+                            // setStepWallet(STEP_WALLET.STEP_CREATE_LOAD_FROM_LOCAL)
                         }
-                    } else {
+                    } catch (e) {
                         addLog(" Wrong Password")
-                        // setStepWallet(STEP_WALLET.STEP_CREATE_LOAD_FROM_LOCAL)
                     }
                 }
             }
@@ -213,6 +224,38 @@ export default function Home() {
         }
     }, [wallet])
 
+    const btnWithdrawAccountWalletToken = useCallback(async () => {
+        const amountInEther = inputWithdrawAccountWalletTokenRef.current.value;
+        if (wallet && amountInEther && parseFloat(amountInEther) > 0) {
+            const withdrawTokenByOwner = gql`
+                mutation withdrawTokenByOwner($address:String!, $amount:Float!) {
+                    withdrawTokenByOwner(address:$address, amount:$amount) {
+                        success
+                        errorMsg
+                        detail
+                    }
+                }
+            `
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            const response = await axios.post(API_LINK, {
+                query: print(withdrawTokenByOwner),
+                variables: {
+                    address: wallet.address,
+                    amount: parseFloat(amountInEther),
+                },
+                headers: headers,
+            })
+            console.log(response)
+            if (response.data && response.data.data.withdrawTokenByOwner.success) {
+                addLog("withdraw success! txthash: " + response.data.data.withdrawTokenByOwner.detail.transaction)
+            } else {
+                addLog("withdraw fails!")
+            }
+
+        }
+    }, [wallet])
     return (
         <div className={styles.container}>
             <Head>
@@ -274,22 +317,58 @@ export default function Home() {
                     {/*>*/}
                     {/*    Decode seed phrase from LocalStorage*/}
                     {/*</button>*/}
-                    <button className={"success"} onClick={btnGetBalanceOfAccount}>Get balance of Account wallet
+                    <button className={"success"} onClick={btnGetBalanceOfAccount}>Get balance of Account wallet BNB
                     </button>
-                    <button>Get balance of Spending wallet</button>
-                    <button className={"success"} onClick={btnDepositToAccount}>Deposit to Spending account</button>
+                    <button>Get balance of Spending wallet BNB</button>
+                </BtnLayout>
+
+                <BtnLayout>
+                    {/*<button*/}
+                    {/*    onClick={btnImportWallet}*/}
+                    {/*    className={"success"}*/}
+                    {/*>*/}
+                    {/*    Decode seed phrase from LocalStorage*/}
+                    {/*</button>*/}
+                    <button>Get balance of Account wallet Token
+                        LBRD
+                    </button>
+                    <button>Get balance of Spending wallet Token LBRD</button>
+                </BtnLayout>
+
+                <BtnLayout>
+                    <button className={"success"} onClick={btnDepositToAccount}>Deposit to Spending account BNB</button>
                     <input ref={inputDepositToSpendingAccountRef} placeholder={"input number deposit"}/>
+
+                    <button>Deposit to Spending account Token LBRD</button>
+                    <input placeholder={"input number deposit"}/>
                 </BtnLayout>
                 <BtnLayout>
                     <button>+- balance</button>
                     <input placeholder={"input number update balance"}/>
-                    <button>Withdraw to Account wallet</button>
-                    <input placeholder={"input number Withdraw"}/>
+
                 </BtnLayout>
                 <BtnLayout>
-                    <button className={"success"} onClick={btnSendToExternal}>Send to external</button>
+                    <button>Withdraw to Account wallet BNB</button>
+                    <input placeholder={"input number Withdraw"}/>
+                    <button className={"success"} onClick={btnWithdrawAccountWalletToken}>Withdraw to Account wallet
+                        Token LBRD
+                    </button>
+                    <input ref={inputWithdrawAccountWalletTokenRef} placeholder={"input number Withdraw"}/>
+                </BtnLayout>
+                <BtnLayout>
+                    <button className={"success"} onClick={btnSendToExternal}>Withdraw to external BNB</button>
                     <input ref={inputSendToExternalRef} placeholder={"input address withdraw"}/>
                     <input ref={inputAmountToSendExternalRef} placeholder={"input amount withdraw"}/>
+                </BtnLayout>
+
+                <BtnLayout>
+                    <button>Withdraw to external Token LBRD</button>
+                    <button>Approve to external Token</button>
+                    <input placeholder={"input address withdraw"}/>
+                    <input placeholder={"input amount withdraw"}/>
+                </BtnLayout>
+                <BtnLayout>
+
                     <button>Trading</button>
                 </BtnLayout>
                 <Log>{log}</Log>
