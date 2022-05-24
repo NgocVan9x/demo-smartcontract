@@ -41,6 +41,7 @@ export default function Home() {
     const inputDepositToSpendingAccountRef = useRef();
     const inputSendToExternalRef = useRef();
     const inputAmountToSendExternalRef = useRef();
+    const inputWithdrawAccountWalletBNBRef = useRef();
     const inputWithdrawAccountWalletTokenRef = useRef();
 
     const addLog = (msg) => {
@@ -258,6 +259,41 @@ export default function Home() {
 
         }
     }, [wallet])
+
+    const btnWithdrawAccountWalletBNB = useCallback(async () => {
+        const amountInEther = inputWithdrawAccountWalletBNBRef.current.value;
+        if (wallet && amountInEther && parseFloat(amountInEther) > 0) {
+            const withdrawCoinByOwner = gql`
+                mutation withdrawCoinByOwner($address:String!, $amount:Float!) {
+                    withdrawCoinByOwner(address:$address, amount:$amount) {
+                        success
+                        errorMsg
+                        detail
+                    }
+                }
+            `
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            const response = await axios.post(API_LINK, {
+                query: print(withdrawCoinByOwner),
+                variables: {
+                    address: wallet.address,
+                    amount: parseFloat(amountInEther),
+                },
+                headers: headers,
+            })
+            console.log(response)
+            if (response.data && response.data.data.withdrawCoinByOwner.success) {
+                inputWithdrawAccountWalletBNBRef.current.value = "";
+                addLog("withdraw success! txthash: " + response.data.data.withdrawCoinByOwner.detail.transaction)
+            } else {
+                inputWithdrawAccountWalletBNBRef.current.value = "";
+                addLog("withdraw fails!")
+            }
+
+        }
+    }, [wallet])
     return (
         <div className={styles.container}>
             <Head>
@@ -350,8 +386,8 @@ export default function Home() {
 
                 </BtnLayout>
                 <BtnLayout>
-                    <button>Withdraw to Account wallet BNB</button>
-                    <input placeholder={"input number Withdraw"}/>
+                    <button className={"success"} onClick={btnWithdrawAccountWalletBNB}>Withdraw to Account wallet BNB</button>
+                    <input ref={inputWithdrawAccountWalletBNBRef} placeholder={"input number Withdraw"}/>
                     <button className={"success"} onClick={btnWithdrawAccountWalletToken}>Withdraw to Account wallet
                         Token LBRD
                     </button>
