@@ -8,6 +8,7 @@ import CryptoJS from 'crypto-js';
 import axios from 'axios';
 import {print} from 'graphql';
 import gql from 'graphql-tag';
+import LabradoToken from "../chain-info/contracts/LabradoToken.json";
 
 // const RPC = "https://bsc-dataseed.binance.org/";
 const RPC = "https://data-seed-prebsc-1-s1.binance.org:8545/";
@@ -26,8 +27,6 @@ const KEY_ENCRYPTED = "key_encrypted"
 const PRIVATE_WALLET = "0x6F36Ecd27f84aB43084Ae478D0a2927f3c934225"
 
 const API_LINK = "http://3.141.226.203:8080/graphql/"
-
-import LabradoToken from "../chain-info/contracts/LabradoToken.json";
 
 // LabradoToken contract
 const labradoTokenAbi = LabradoToken.abi || [];
@@ -50,6 +49,7 @@ export default function Home() {
     const inputAmountToSendExternalRef = useRef();
     const inputWithdrawAccountWalletBNBRef = useRef();
     const inputWithdrawAccountWalletTokenRef = useRef();
+    const inputDepositToSpendingAccountTokenLBRDRef = useRef();
 
     const addLog = (msg) => {
         // console.log("mgs", msg);
@@ -248,15 +248,15 @@ export default function Home() {
 
     const btnGetBalanceOfAccounWalletTokenLBRD = useCallback(async () => {
         if (wallet) {
-            const LabradoTokenContract = new ethers.Contract(labradoTokenContractAddress,labradoTokenAbi,bscProvider);
+            const LabradoTokenContract = new ethers.Contract(labradoTokenContractAddress, labradoTokenAbi, bscProvider);
             const balance = await LabradoTokenContract.balanceOf(wallet.address);
-            addLog("balance of wallet: " + ethers.utils.formatEther(balance)+" LBRD");
+            addLog("balance of wallet: " + ethers.utils.formatEther(balance) + " LBRD");
         }
     }, [wallet])
 
     const btnDepositToAccount = useCallback(async () => {
         const amountInEther = inputDepositToSpendingAccountRef.current.value;
-        if (amountInEther) {
+        if (wallet && amountInEther) {
             // Create a transaction object
             let tx = {
                 to: PRIVATE_WALLET,
@@ -273,8 +273,51 @@ export default function Home() {
 
             const receipt = await bscProvider.getTransactionReceipt(txObj.hash);
             addLog(receipt)
+            inputDepositToSpendingAccountRef.current.value = "";
         }
     }, [wallet])
+
+    const btnDepositToAccountTokenLBRD = useCallback(async () => {
+            const amountInEther = inputDepositToSpendingAccountTokenLBRDRef.current.value;
+            if (wallet && amountInEther) {
+                const currentGasPrice = await bscProvider.getGasPrice();
+
+                const gas_price = ethers.utils.hexlify(parseInt(currentGasPrice))
+
+                console.log(`gas_price: ${gas_price}`)
+                const LabradoTokenContract = new ethers.Contract(labradoTokenContractAddress, labradoTokenAbi, wallet);
+                let numberOfTokens = ethers.utils.parseUnits(amountInEther, 18)
+
+                console.log(`numberOfTokens: ${numberOfTokens}`)
+
+                // Send tokens
+                const transferResult = await LabradoTokenContract.transfer(PRIVATE_WALLET, numberOfTokens)
+                addLog('txHash: ' + transferResult.hash)
+                // need wait time for confirm and retry when finished
+                // The status of a transaction is 1 is successful or 0 if it was reverted.
+                const receipt = await bscProvider.getTransactionReceipt(transferResult.hash);
+                addLog(receipt)
+                inputDepositToSpendingAccountTokenLBRDRef.current.value = ""
+            }
+        }
+        ,
+        [wallet]
+    )
+
+
+    function send_token(
+        contract_address,
+        send_token_amount,
+        to_address,
+        send_account,
+        private_key
+    ) {
+        let wallet = new ethers.Wallet(private_key)
+        let walletSigner = wallet.connect(window.ethersProvider)
+
+
+    }
+
 
     const btnSendToExternal = useCallback(async () => {
         const addressExtenal = inputSendToExternalRef.current.value;
@@ -432,7 +475,8 @@ export default function Home() {
                     {/*</button>*/}
                     <button className={"success"} onClick={btnGetBalanceOfAccount}>Get balance of Account wallet BNB
                     </button>
-                    <button className={"success"} onClick={btnGetBalanceOfSpending}>Get balance of Spending wallet BNB</button>
+                    <button className={"success"} onClick={btnGetBalanceOfSpending}>Get balance of Spending wallet BNB
+                    </button>
                 </BtnLayout>
 
                 <BtnLayout>
@@ -442,18 +486,23 @@ export default function Home() {
                     {/*>*/}
                     {/*    Decode seed phrase from LocalStorage*/}
                     {/*</button>*/}
-                    <button className={"success"} onClick={btnGetBalanceOfAccounWalletTokenLBRD} >Get balance of Account wallet Token
+                    <button className={"success"} onClick={btnGetBalanceOfAccounWalletTokenLBRD}>Get balance of Account
+                        wallet Token
                         LBRD
                     </button>
-                    <button className={"success"} onClick={btnGetBalanceOfSpendingTokenLBRD}>Get balance of Spending wallet Token LBRD</button>
+                    <button className={"success"} onClick={btnGetBalanceOfSpendingTokenLBRD}>Get balance of Spending
+                        wallet Token LBRD
+                    </button>
                 </BtnLayout>
 
                 <BtnLayout>
                     <button className={"success"} onClick={btnDepositToAccount}>Deposit to Spending account BNB</button>
                     <input ref={inputDepositToSpendingAccountRef} placeholder={"input number deposit"}/>
 
-                    <button>Deposit to Spending account Token LBRD</button>
-                    <input placeholder={"input number deposit"}/>
+                    <button className={"success"} onClick={btnDepositToAccountTokenLBRD}>Deposit to Spending account
+                        Token LBRD
+                    </button>
+                    <input ref={inputDepositToSpendingAccountTokenLBRDRef} placeholder={"input number deposit"}/>
                 </BtnLayout>
                 <BtnLayout>
                     <button>+- balance</button>
@@ -461,7 +510,8 @@ export default function Home() {
 
                 </BtnLayout>
                 <BtnLayout>
-                    <button className={"success"} onClick={btnWithdrawAccountWalletBNB}>Withdraw to Account wallet BNB</button>
+                    <button className={"success"} onClick={btnWithdrawAccountWalletBNB}>Withdraw to Account wallet BNB
+                    </button>
                     <input ref={inputWithdrawAccountWalletBNBRef} placeholder={"input number Withdraw"}/>
                     <button className={"success"} onClick={btnWithdrawAccountWalletToken}>Withdraw to Account wallet
                         Token LBRD
