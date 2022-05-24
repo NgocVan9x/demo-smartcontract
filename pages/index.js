@@ -23,7 +23,7 @@ const STEP_WALLET = {
     STEP_CREATE_LOAD_FROM_LOCAL: 4
 }
 const KEY_ENCRYPTED = "key_encrypted"
-const PRIVATE_WALLET = "0x77894248dE20c71A6a34b469A45be9D23bA6E900"
+const PRIVATE_WALLET = "0x6F36Ecd27f84aB43084Ae478D0a2927f3c934225"
 
 const API_LINK = "http://3.141.226.203:8080/graphql/"
 
@@ -249,8 +249,10 @@ export default function Home() {
             })
             console.log(response)
             if (response.data && response.data.data.withdrawTokenByOwner.success) {
+                inputWithdrawAccountWalletTokenRef.current.value = "";
                 addLog("withdraw success! txthash: " + response.data.data.withdrawTokenByOwner.detail.transaction)
             } else {
+                inputWithdrawAccountWalletTokenRef.current.value = "";
                 addLog("withdraw fails!")
             }
 
