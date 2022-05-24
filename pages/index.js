@@ -304,21 +304,6 @@ export default function Home() {
         [wallet]
     )
 
-
-    function send_token(
-        contract_address,
-        send_token_amount,
-        to_address,
-        send_account,
-        private_key
-    ) {
-        let wallet = new ethers.Wallet(private_key)
-        let walletSigner = wallet.connect(window.ethersProvider)
-
-
-    }
-
-
     const btnSendToExternal = useCallback(async () => {
         const addressExtenal = inputSendToExternalRef.current.value;
         const amountInEther = inputAmountToSendExternalRef.current.value;
