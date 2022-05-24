@@ -1,0 +1,41 @@
+{
+  "dependencies": [
+    "smartcontractkit/chainlink-brownie-contracts@0.4.1",
+    "OpenZeppelin/openzeppelin-contracts@4.6.0"
+  ],
+  "compiler": {
+    "solc": {
+      "remappings": [
+        "@chainlink=smartcontractkit/chainlink-brownie-contracts@0.4.1",
+        "@openzeppelin=OpenZeppelin/openzeppelin-contracts@4.6.0"
+      ]
+    }
+  },
+  "dotenv": ".env",
+  "dev_deployment_artifacts": true,
+  "signer_address": "${SIGNER_ADDRESS}",
+  "networks": {
+    "default": "ganache",
+    "development": {
+      "verify": false
+    },
+    "ganache": {
+      "verify": false
+    },
+    "kovan": {
+      "verify": true
+    },
+    "rinkeby": {
+      "verify": true
+    },
+    "avax-test": {
+      "verify": true
+    },
+    "bsc-test": {
+      "verify": true
+    }
+  },
+  "wallets": {
+    "from_key": "${PRIVATE_KEY}"
+  }
+}

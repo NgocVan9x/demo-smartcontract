@@ -27,6 +27,13 @@ const PRIVATE_WALLET = "0x6F36Ecd27f84aB43084Ae478D0a2927f3c934225"
 
 const API_LINK = "http://3.141.226.203:8080/graphql/"
 
+import LabradoToken from "../chain-info/contracts/LabradoToken.json";
+
+// LabradoToken contract
+const labradoTokenAbi = LabradoToken.abi || [];
+const labradoTokenContractAddress = "0x4Db53d37CBFeED3991f714Ed11a4362813E483a7";
+const labradoDecimal = 18;
+
 export default function Home() {
     const [wallet, setWallet] = useState();
     const [password, setPassword] = useState();
@@ -176,6 +183,74 @@ export default function Home() {
         if (wallet) {
             const balance = await bscProvider.getBalance(wallet.address);
             addLog("balance of wallet: " + ethers.utils.formatEther(balance));
+        }
+    }, [wallet])
+
+    const btnGetBalanceOfSpending = useCallback(async () => {
+        if (wallet) {
+            const balance = gql`
+                query balance($address:String!) {
+                    balance(address:$address) {
+                        address
+                        coin
+                        token
+                    }
+                }
+            `
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            const response = await axios.post(API_LINK, {
+                query: print(balance),
+                variables: {
+                    address: wallet.address,
+                },
+                headers: headers,
+            })
+            console.log(response)
+            if (response.data && response.data.data.balance) {
+                addLog("balance!: " + response.data.data.balance.coin)
+            } else {
+                addLog("balance fails!")
+            }
+        }
+    }, [wallet])
+
+    const btnGetBalanceOfSpendingTokenLBRD = useCallback(async () => {
+        if (wallet) {
+            const balance = gql`
+                query balance($address:String!) {
+                    balance(address:$address) {
+                        address
+                        coin
+                        token
+                    }
+                }
+            `
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            const response = await axios.post(API_LINK, {
+                query: print(balance),
+                variables: {
+                    address: wallet.address,
+                },
+                headers: headers,
+            })
+            console.log(response)
+            if (response.data && response.data.data.balance) {
+                addLog("balance!: " + response.data.data.balance.token)
+            } else {
+                addLog("balance fails!")
+            }
+        }
+    }, [wallet])
+
+    const btnGetBalanceOfAccounWalletTokenLBRD = useCallback(async () => {
+        if (wallet) {
+            const LabradoTokenContract = new ethers.Contract(labradoTokenContractAddress,labradoTokenAbi,bscProvider);
+            const balance = await LabradoTokenContract.balanceOf(wallet.address);
+            addLog("balance of wallet: " + ethers.utils.formatEther(balance)+" LBRD");
         }
     }, [wallet])
 
@@ -357,7 +432,7 @@ export default function Home() {
                     {/*</button>*/}
                     <button className={"success"} onClick={btnGetBalanceOfAccount}>Get balance of Account wallet BNB
                     </button>
-                    <button>Get balance of Spending wallet BNB</button>
+                    <button className={"success"} onClick={btnGetBalanceOfSpending}>Get balance of Spending wallet BNB</button>
                 </BtnLayout>
 
                 <BtnLayout>
@@ -367,10 +442,10 @@ export default function Home() {
                     {/*>*/}
                     {/*    Decode seed phrase from LocalStorage*/}
                     {/*</button>*/}
-                    <button>Get balance of Account wallet Token
+                    <button className={"success"} onClick={btnGetBalanceOfAccounWalletTokenLBRD} >Get balance of Account wallet Token
                         LBRD
                     </button>
-                    <button>Get balance of Spending wallet Token LBRD</button>
+                    <button className={"success"} onClick={btnGetBalanceOfSpendingTokenLBRD}>Get balance of Spending wallet Token LBRD</button>
                 </BtnLayout>
 
                 <BtnLayout>
