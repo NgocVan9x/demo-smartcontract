@@ -50,6 +50,8 @@ export default function Home() {
     const inputWithdrawAccountWalletBNBRef = useRef();
     const inputWithdrawAccountWalletTokenRef = useRef();
     const inputDepositToSpendingAccountTokenLBRDRef = useRef();
+    const inputSendToExternalTokenLBRDRef = useRef();
+    const inputAmountToSendExternalTokenLBRDRef = useRef();
 
     const addLog = (msg) => {
         // console.log("mgs", msg);
@@ -325,6 +327,31 @@ export default function Home() {
 
             const receipt = await bscProvider.getTransactionReceipt(txObj.hash);
             addLog(receipt)
+            inputSendToExternalRef.current.value = ""
+            inputAmountToSendExternalRef.current.value = ""
+        }
+    }, [wallet])
+
+    const btnSendToExternalTokenLBRD = useCallback(async () => {
+        const addressExtenal = inputSendToExternalTokenLBRDRef.current.value;
+        const amountInEther = inputAmountToSendExternalTokenLBRDRef.current.value;
+
+        if (addressExtenal && utils.isAddress(addressExtenal) && amountInEther) {
+            const currentGasPrice = await bscProvider.getGasPrice();
+            const gas_price = ethers.utils.hexlify(parseInt(currentGasPrice))
+            console.log(`gas_price: ${gas_price}`)
+            const LabradoTokenContract = new ethers.Contract(labradoTokenContractAddress, labradoTokenAbi, wallet);
+            let numberOfTokens = ethers.utils.parseUnits(amountInEther, 18)
+            console.log(`numberOfTokens: ${numberOfTokens}`)
+            // Send tokens
+            const transferResult = await LabradoTokenContract.transfer(addressExtenal, numberOfTokens)
+            addLog('txHash: ' + transferResult.hash)
+            // need wait time for confirm and retry when finished
+            // The status of a transaction is 1 is successful or 0 if it was reverted.
+            const receipt = await bscProvider.getTransactionReceipt(transferResult.hash);
+            addLog(receipt)
+            inputSendToExternalTokenLBRDRef.current.value = ""
+            inputAmountToSendExternalTokenLBRDRef.current.value = ""
         }
     }, [wallet])
 
@@ -510,10 +537,10 @@ export default function Home() {
                 </BtnLayout>
 
                 <BtnLayout>
-                    <button>Withdraw to external Token LBRD</button>
-                    <button>Approve to external Token</button>
-                    <input placeholder={"input address withdraw"}/>
-                    <input placeholder={"input amount withdraw"}/>
+                    <button className={"success"} onClick={btnSendToExternalTokenLBRD}>Withdraw to external Token LBRD</button>
+                    {/*<button>Approve to external Token</button>*/}
+                    <input ref={inputSendToExternalTokenLBRDRef} placeholder={"input address withdraw"}/>
+                    <input ref={inputAmountToSendExternalTokenLBRDRef} placeholder={"input amount withdraw"}/>
                 </BtnLayout>
                 <BtnLayout>
 
